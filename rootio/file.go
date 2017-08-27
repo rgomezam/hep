@@ -89,6 +89,8 @@ type File struct {
 	dir    tdirectory // root directory of this file
 	siKey  Key
 	sinfos []StreamerInfo
+
+	blocks blocks // blocks is a list of free blocks in a ROOT file.
 }
 
 // Open opens the named ROOT file for reading. If successful, methods on the
@@ -254,7 +256,7 @@ func (f *File) writeHeader() error {
 		return err
 	}
 
-	err = binary.Write(f.w, binary.BigEndian, uint32(61002))
+	err = binary.Write(f.w, binary.BigEndian, uint32(rootVersion))
 	if err != nil {
 		return err
 	}
@@ -272,9 +274,12 @@ func (f *File) writeHeader() error {
 
 	f.begin = kBEGIN
 	f.end = kBEGIN
+	f.blocks = append(f.blocks, block{f.begin, kStartBigFile})
 	if true {
 		f.end = 403
 		f.seekfree = 349
+		f.nfree = int32(len(f.blocks))
+		f.nbytesname = int32(tstringSizeof(k.name)) + k.keylen
 		f.nbytesfree = 54
 		f.units = 4
 		f.compression = 1
@@ -410,6 +415,44 @@ func (f *File) StreamerInfo() []StreamerInfo {
 //     foo;1 : get cycle 1 of foo on file
 func (f *File) Get(namecycle string) (Object, error) {
 	return f.dir.Get(namecycle)
+}
+
+// block describes a free block in a ROOT file.
+type block struct {
+	first int64
+	last  int64
+}
+
+// blocks is a list of free blocks in a ROOT file.
+type blocks []block
+
+func (blks *blocks) add(first, last int64) int {
+	for i := range *blks {
+		blk := &(*blks)[i]
+		if blk.last == first-1 {
+			blk.last = last
+			if i+1 >= len(*blks) {
+				return i
+			}
+			next := &(*blks)[i+1]
+			if next.first > last+1 {
+				return i
+			}
+			blk.last = next.last
+			(*blks) = append((*blks)[:i+1], (*blks)[i+2:]...)
+			return i
+		}
+		if blk.first == last+1 {
+			blk.first = first
+			return i
+		}
+		if first < blk.first {
+			free := block{first, last}
+			*blks = append((*blks)[:i], append([]block{free}, (*blks)[i:]...)...)
+			return i
+		}
+	}
+	return -1
 }
 
 var _ Object = (*File)(nil)

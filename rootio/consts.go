@@ -7,6 +7,8 @@ package rootio
 // start of payload in a TFile (in bytes)
 const kBEGIN = 100
 
+const kStartBigFile = 2000000000
+
 // constants for the streamers
 const (
 	kBase       = 0
