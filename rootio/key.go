@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	kTitleMax = 32000
+)
+
 // noKeyError is the error returned when a rootio.Key could not be found.
 type noKeyError struct {
 	key string
@@ -51,11 +55,96 @@ type Key struct {
 	seekpdir int64 // pointer to the directory supporting this object
 
 	class string // object class name
+	left  int32  // number of bytes left in current block
 	name  string // name of the object
 	title string // title of the object
 
 	buf []byte // buffer of the Key's value
 	obj Object // Key's value
+}
+
+func newHeaderKey(name, title, class string, f *File, nbytes int32) Key {
+	k := Key{
+		datetime: time.Now(),
+		name:     name,
+		title:    title,
+	}
+
+	k.buildHeader(f, class, -1)
+
+	k.keylen = int32(k.Sizeof())
+	k.objlen = nbytes
+	k.create(nbytes, f)
+	return k
+}
+
+func (k *Key) buildHeader(dir *File, class string, filepos int64) {
+	k.f = dir
+	k.class = class
+	if k.class == "TDirectoryFile" {
+		// FIXME(sbinet): SetBit(kIsDirectoryFile)
+		panic("rootio: not implemented")
+	}
+
+	k.version = 4 // FIXME(sbinet): TKey::Class_Version()
+
+	if filepos == -1 && k.f != nil {
+		filepos = k.f.end
+	}
+
+	if filepos > kStartBigFile {
+		k.version += 1000
+	}
+
+	if len(k.title) > kTitleMax {
+		k.title = string(k.title[:kTitleMax])
+	}
+}
+
+func (k *Key) create(nbytes int32, f *File) {
+	// FIXME(sbinet): SetUniqueID(keyAbsNumer);
+
+	nsize := nbytes + k.keylen
+	blks := &k.f.blocks
+
+	// find free block
+	best := blks.bestFree(nsize)
+	if best == nil {
+		panic(fmt.Errorf(
+			"rootio: can not allocate %d bytes for ID=%q, Title=%q",
+			nsize, k.Name(), k.Title(),
+		))
+	}
+
+	k.seekkey = best.first
+
+	// adding at the end of the file
+	if k.seekkey > f.end {
+		f.end = k.seekkey + int64(nsize)
+		best.first = k.seekkey + int64(nsize)
+		if f.end > best.last {
+			best.last += 1000000000
+		}
+		k.left = -1
+
+		// FIXME(sbinet): fBuffer = new char[nsize]
+	} else {
+		k.left = int32(best.last-k.seekkey) - nsize + 1
+	}
+
+	// case where new object fills exactly a deleted gap
+	k.bytes = nsize
+	if k.left == 0 {
+		blks.remove(best)
+	}
+
+	// case where new object is placed in a deleted gap larger than itself
+	if k.left > 0 {
+		// left := -k.left // set header of remaining record
+		best.first = k.seekkey + int64(nsize)
+	}
+
+	k.seekpdir = f.dir.seekdir
 }
 
 func (k *Key) Class() string {
@@ -172,6 +261,34 @@ func (k *Key) load(buf []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+// Sizeof returns the size in bytes of the key header structure.
+//
+// An explanation about the nbytes variable used in this method.
+// The size of seekkey and seekpdir is 8 instead of 4 if version is greater
+// than 1000.
+//
+//   | Component         | Sizeof |
+//   |-------------------|--------|
+//   | fNbytes           | 4      |
+//   | sizeof(Version_t) | 2      |
+//   | fObjlen           | 4      |
+//   | fKeylen           | 2      |
+//   | fCycle            | 2      |
+//   | fSeekKey          | 4 or 8 |
+//   | fSeekPdir         | 4 or 8 |
+//   | **TOTAL**         |   22   |
+func (k *Key) Sizeof() int {
+	nbytes := 22
+	if k.version > 1000 {
+		nbytes += 8
+	}
+	nbytes += datetimeSizeof(k.datetime)
+	nbytes += tstringSizeof(k.class)
+	nbytes += tstringSizeof(k.name)
+	nbytes += tstringSizeof(k.title)
+	return nbytes
 }
 
 func (k *Key) isCompressed() bool {

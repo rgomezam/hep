@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
+// Reader is the rootio interface to interact with ROOT
+// files open in read-only mode.
 type Reader interface {
 	io.Reader
 	io.ReaderAt
@@ -19,6 +20,8 @@ type Reader interface {
 	io.Closer
 }
 
+// Writer is the rootio interface to interact with ROOT
+// files open in write-only mode.
 type Writer interface {
 	io.Writer
 	io.WriterAt
@@ -261,31 +264,28 @@ func (f *File) writeHeader() error {
 		return err
 	}
 
-	namelen := tstringSizeof(f.dir.Name()) + tstringSizeof(f.dir.Title())
-	nbytes := int32(namelen) + int32(f.dir.recordSize(rootVersion))
-	k := Key{
-		f: f, version: 4,
-		objlen:   nbytes,
-		datetime: time.Now(),
-		class:    "TDirectoryFile",
-		name:     f.dir.Name(),
-		title:    f.dir.Title(),
-	}
-
 	f.begin = kBEGIN
 	f.end = kBEGIN
 	f.blocks = append(f.blocks, block{f.begin, kStartBigFile})
-	if true {
-		f.end = 403
-		f.seekfree = 349
-		f.nfree = int32(len(f.blocks))
-		f.nbytesname = int32(tstringSizeof(k.name)) + k.keylen
-		f.nbytesfree = 54
-		f.units = 4
-		f.compression = 1
-		f.seekinfo = 216
-		f.nbytesinfo = 85
+
+	namelen := tstringSizeof(f.dir.Name()) + tstringSizeof(f.dir.Title())
+	nbytes := int32(namelen) + int32(f.dir.recordSize(rootVersion))
+	k := newHeaderKey(f.Name(), f.Title(), f.Class(), f, nbytes)
+	f.nbytesname = int32(tstringSizeof(k.name)) + k.keylen
+	f.dir.seekdir = k.seekkey
+	f.seekfree = 0
+	f.nbytesfree = 0
+	// ->> TFile::WriteHeader()
+	f.end = f.blocks[len(f.blocks)-1].first
+	f.nfree = int32(len(f.blocks))
+	f.units = 4
+	if f.version < 1000000 && f.end > kStartBigFile {
+		f.version += 1000000
+		f.units = 8
 	}
+	f.compression = 1
+	//f.seekinfo = 216
+	//f.nbytesinfo = 85
 
 	w := NewWBufferFrom(f.w, nil, 0)
 	w.WriteI32(int32(f.begin))
@@ -453,6 +453,50 @@ func (blks *blocks) add(first, last int64) int {
 		}
 	}
 	return -1
+}
+
+// bestFree returns the best free block where to store nbytes.
+func (blks blocks) bestFree(nbytes int32) *block {
+	var blk *block
+	for i := range blks {
+		cur := &blks[i]
+		nleft := cur.last - cur.first + 1
+		if nleft == int64(nbytes) {
+			// found an exact match
+			return cur
+		}
+		if nleft > int64(nbytes+3) {
+			if blk == nil {
+				blk = cur
+			}
+		}
+	}
+
+	// return first segment that can contain 'nbytes'
+	if blk != nil {
+		return blk
+	}
+
+	// try big file
+	blk = &blks[len(blks)-1]
+	blk.last += 1000000000
+	return blk
+}
+
+func (blks *blocks) remove(blk *block) {
+	i := -1
+	for ii, bb := range *blks {
+		if bb == *blk {
+			i = ii
+			break
+		}
+	}
+
+	if i == -1 {
+		panic("rootio: impossible")
+	}
+
+	*blks = append((*blks)[:i], (*blks)[i+1:]...)
 }
 
 var _ Object = (*File)(nil)

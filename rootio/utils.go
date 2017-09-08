@@ -52,6 +52,11 @@ func datime2time(d uint32) time.Time {
 		int(hour), int(min), int(sec), nsec, time.UTC)
 }
 
+func datetimeSizeof(time.Time) int {
+	// sizeof(int32)
+	return 4
+}
+
 func errorf(format string, args ...interface{}) error {
 	return fmt.Errorf(format, args...)
 }
