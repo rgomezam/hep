@@ -214,6 +214,15 @@ func (dir *tdirectory) UnmarshalROOT(r *RBuffer) error {
 	return r.Err()
 }
 
+// MarshalROOT encodes the content of the directory into the buffer.
+func (dir *tdirectory) MarshalROOT(w *WBuffer) error {
+	if w.err != nil {
+		return w.err
+	}
+	// TODO(sbinet): implement
+	return w.err
+}
+
 func init() {
 	f := func() reflect.Value {
 		o := &tdirectory{}
@@ -223,7 +232,10 @@ func init() {
 	Factory.add("*rootio.tdirectory", f)
 }
 
-var _ Object = (*tdirectory)(nil)
-var _ Named = (*tdirectory)(nil)
-var _ Directory = (*tdirectory)(nil)
-var _ ROOTUnmarshaler = (*tdirectory)(nil)
+var (
+	_ Object          = (*tdirectory)(nil)
+	_ Named           = (*tdirectory)(nil)
+	_ Directory       = (*tdirectory)(nil)
+	_ ROOTMarshaler   = (*tdirectory)(nil)
+	_ ROOTUnmarshaler = (*tdirectory)(nil)
+)

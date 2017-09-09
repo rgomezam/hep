@@ -51,6 +51,15 @@ func (n *tnamed) UnmarshalROOT(r *RBuffer) error {
 	return r.Err()
 }
 
+// MarshalROOT encodes the content of the named into the buffer.
+func (n *tnamed) MarshalROOT(w *WBuffer) error {
+	if w.err != nil {
+		return w.err
+	}
+	// TODO(sbinet): implement
+	return w.err
+}
+
 func init() {
 	f := func() reflect.Value {
 		o := &tnamed{}
@@ -60,6 +69,9 @@ func init() {
 	Factory.add("*rootio.tnamed", f)
 }
 
-var _ Object = (*tnamed)(nil)
-var _ Named = (*tnamed)(nil)
-var _ ROOTUnmarshaler = (*tnamed)(nil)
+var (
+	_ Object          = (*tnamed)(nil)
+	_ Named           = (*tnamed)(nil)
+	_ ROOTMarshaler   = (*tnamed)(nil)
+	_ ROOTUnmarshaler = (*tnamed)(nil)
+)

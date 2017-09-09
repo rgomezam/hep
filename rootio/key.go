@@ -345,6 +345,20 @@ func (k *Key) UnmarshalROOT(r *RBuffer) error {
 	return r.Err()
 }
 
+// MarshalROOT encodes the content of the key into the buffer.
+func (k *Key) MarshalROOT(w *WBuffer) error {
+	if w.err != nil {
+		return w.err
+	}
+	// TODO(sbinet): implement
+	return w.err
+}
+
+func (k *Key) writeFile() error {
+	// TODO(sbinet) implement
+	return nil
+}
+
 func init() {
 	f := func() reflect.Value {
 		o := &Key{}
@@ -354,6 +368,9 @@ func init() {
 	Factory.add("*rootio.Key", f)
 }
 
-var _ Object = (*Key)(nil)
-var _ Named = (*Key)(nil)
-var _ ROOTUnmarshaler = (*Key)(nil)
+var (
+	_ Object          = (*Key)(nil)
+	_ Named           = (*Key)(nil)
+	_ ROOTMarshaler   = (*Key)(nil)
+	_ ROOTUnmarshaler = (*Key)(nil)
+)
