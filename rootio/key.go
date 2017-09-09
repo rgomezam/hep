@@ -126,8 +126,7 @@ func (k *Key) create(nbytes int32, f *File) {
 			best.last += 1000000000
 		}
 		k.left = -1
-
-		// FIXME(sbinet): fBuffer = new char[nsize]
+		k.buf = make([]byte, nsize)
 	} else {
 		k.left = int32(best.last-k.seekkey) - nsize + 1
 	}
@@ -135,12 +134,16 @@ func (k *Key) create(nbytes int32, f *File) {
 	// case where new object fills exactly a deleted gap
 	k.bytes = nsize
 	if k.left == 0 {
+		k.buf = make([]byte, nsize)
 		blks.remove(best)
 	}
 
 	// case where new object is placed in a deleted gap larger than itself
 	if k.left > 0 {
-		// left := -k.left // set header of remaining record
+		k.buf = make([]byte, nsize+4)
+		left := -k.left // set header of remaining record
+		wbuf := NewWBuffer(k.buf[nsize:], nil, 0)
+		wbuf.WriteI32(left)
 		best.first = k.seekkey + int64(nsize)
 	}
 
