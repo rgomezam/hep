@@ -108,7 +108,7 @@ func (k *Key) create(nbytes int32, f *File) {
 	blks := &k.f.blocks
 
 	// find free block
-	best := blks.bestFree(nsize)
+	best := blks.best(nsize)
 	if best == nil {
 		panic(fmt.Errorf(
 			"rootio: can not allocate %d bytes for ID=%q, Title=%q",

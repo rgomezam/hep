@@ -455,8 +455,8 @@ func (blks *blocks) add(first, last int64) int {
 	return -1
 }
 
-// bestFree returns the best free block where to store nbytes.
-func (blks blocks) bestFree(nbytes int32) *block {
+// best returns the best free block where to store nbytes.
+func (blks blocks) best(nbytes int32) *block {
 	var blk *block
 	for i := range blks {
 		cur := &blks[i]
