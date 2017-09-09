@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"os"
 )
 
@@ -268,10 +269,10 @@ func (f *File) writeHeader() error {
 	f.end = kBEGIN
 	f.blocks = append(f.blocks, block{f.begin, kStartBigFile})
 
-	namelen := tstringSizeof(f.dir.Name()) + tstringSizeof(f.dir.Title())
+	namelen := tstringSizeof(f.Name()) + tstringSizeof(f.Title())
 	nbytes := int32(namelen) + int32(f.dir.recordSize(rootVersion))
 	k := newHeaderKey(f.Name(), f.Title(), f.Class(), f, nbytes)
-	f.nbytesname = int32(tstringSizeof(k.name)) + k.keylen
+	f.nbytesname = k.keylen + int32(namelen)
 	f.dir.seekdir = k.seekkey
 	f.seekfree = 0
 	f.nbytesfree = 0
@@ -286,6 +287,19 @@ func (f *File) writeHeader() error {
 	f.compression = 1
 	//f.seekinfo = 216
 	//f.nbytesinfo = 85
+
+	if true {
+		log.Printf("end=       %4d | 403", f.end)
+		// f.end = 403
+		log.Printf("seekfree=  %4d | 349", f.seekfree)
+		log.Printf("nbytesfree=%4d |  54", f.nbytesfree)
+		log.Printf("nfree=     %4d |  ??", f.nfree)
+		log.Printf("nbytesname=%4d |  ??", f.nbytesname)
+		log.Printf("units=     %4d |  ??", f.units)
+		log.Printf("compr=     %4d |   1", f.compression)
+		log.Printf("seekinfo=  %4d | 215", f.seekinfo)
+		log.Printf("nbytesinfo=%4d |  85", f.nbytesinfo)
+	}
 
 	w := NewWBufferFrom(f.w, nil, 0)
 	w.WriteI32(int32(f.begin))
@@ -313,6 +327,12 @@ func (f *File) writeHeader() error {
 	w.write(f.uuid[:])
 
 	fmt.Printf("key=%v\n", k)
+
+	// <<- TFile::WriteHeader
+	wkey := NewWBuffer(k.buf, nil, 0)
+	f.dir.named.MarshalROOT(wkey)
+	f.dir.MarshalROOT(wkey)
+	k.writeFile()
 
 	return w.err
 }
